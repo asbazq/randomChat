@@ -6,6 +6,7 @@ import lombok.Getter;
 
 @Getter
 public class ChatRoomDto {
+<<<<<<< HEAD
     private String id;
     
     private String name;
@@ -22,4 +23,16 @@ public class ChatRoomDto {
     public void setUserCount(Long userCount) {
         this.userCount = userCount;
     }
+=======
+    private String roomId;
+    private String name;
+
+    public static ChatRoomDto create(String name) {
+        ChatRoomDto chatRoomDto = new ChatRoomDto();
+        chatRoomDto.roomId = UUID.randomUUID().toString();
+        chatRoomDto.name = name;
+        return chatRoomDto;
+    }
+    
+>>>>>>> a9d529bb42d525b8b869238cddc213d7e57b123f
 }
