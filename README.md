@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # stompTest
 
 stompTest 프로젝트는 Spring Boot와 STOMP 프로토콜을 사용한 WebSocket 통신을 구현한 예제입니다. 이 프로젝트는 실시간 메시징 애플리케이션 개발을 위한 기본적인 구조를 제공합니다.
@@ -57,3 +58,6 @@ cd stompTest-main
 ## 라이선스
 
 이 프로젝트는 (라이선스) 하에 배포됩니다. 라이선스에 대한 자세한 내용은 `LICENSE` 파일을 참조하세요.
+=======
+# randomChat
+>>>>>>> 24fd43b8fe0dddcd7f0861d024cdf32ce2592495
