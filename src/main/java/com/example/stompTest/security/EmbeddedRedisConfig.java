@@ -18,10 +18,19 @@ public class EmbeddedRedisConfig {
     private int redisPort;
 
     private RedisServer redisServer;
+
     @PostConstruct
-    public void redisServer() {
-        redisServer = new RedisServer(redisPort);
-        redisServer.start();
+    public void startRedis() {
+        try {
+            // redisServer = new RedisServer(redisPort);
+            redisServer = RedisServer.builder()
+            .port(redisPort)
+            .setting("maxmemory 128M")
+            .build();
+            redisServer.start();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to start embedded Redis", e);
+        }
     }
 
     @PreDestroy

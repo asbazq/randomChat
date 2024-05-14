@@ -1,10 +1,10 @@
 package com.example.stompTest.security.jwt;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Optional;
+import java.security.Key;
+import java.security.SignatureException;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,12 +13,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.interfaces.DecodedJWT;
-import com.auth0.jwt.interfaces.JWTVerifier;
 import com.example.stompTest.Exception.CustomException;
 import com.example.stompTest.Exception.ErrorCode;
+import com.example.stompTest.model.Member;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,12 +23,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.SignatureException;
 import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -50,22 +47,25 @@ public class JwtTokenProvider {
 
     public final HttpServletResponse response;
     private final UserDetailsService userDetailsService;
+    private Key key;
 
     @PostConstruct
     protected void init() {
-        secretKey = Base64.getEncoder().encodeToString(secretKey.getBytes());
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        this.key = Keys.hmacShaKeyFor(keyBytes);
     }
 
     // 토큰 생성
-    public String createToken(String userPk, Long userId) {
+    public String createToken(String userPk, Long userId, Member.MemberRole role) {
         Claims claims = Jwts.claims().setSubject(userPk);
+        claims.put("role", role);
         Date now = new Date();
         String token = Jwts.builder()
                 .setClaims(claims)// 정보저장
                 .claim("userId", userId)
                 .setIssuedAt(now)// 토큰 발행 시간 정보
                 .setExpiration(new Date(now.getTime() + ACCESS_EXPIRATION_TIME))
-                .signWith(SignatureAlgorithm.HS256, secretKey)// 사용할 암호화 알고리즘
+                .signWith(key, SignatureAlgorithm.HS256)// 사용할 암호화 알고리즘
                 // signature에 들어갈 secret값 세팅
                 .compact();
 
@@ -80,7 +80,7 @@ public class JwtTokenProvider {
                 .setClaims(claims)// 정보저장
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + REFRESH_EXPIRATION_TIME))
-                .signWith(SignatureAlgorithm.HS256, secretKey)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
 
         // response.addHeader("RefreshToken","Bearer " + refreshToken);
@@ -89,7 +89,12 @@ public class JwtTokenProvider {
 
     // 토큰에서 회원 정보 추출
     public String getUserPk(String jwtToken) {
-        return Jwts.parser().setSigningKey(secretKey).parseClaimsJws(setTokenName(jwtToken)).getBody().getSubject();
+        return Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(setTokenName(jwtToken))
+                    .getBody()
+                    .getSubject();
     }
 
     // JWT 토큰에서 인증 정보 조회
@@ -112,9 +117,12 @@ public class JwtTokenProvider {
     // 토큰의 유효성 + 만료일자 확인
     public boolean validateToken(String jwtToken) {
         try {
-            Jws<Claims> claims = Jwts.parser().setSigningKey(secretKey).parseClaimsJws(setTokenName(jwtToken));
+            Jws<Claims> claims = Jwts.parserBuilder()
+                                    .setSigningKey(key)
+                                    .build()
+                                    .parseClaimsJws(setTokenName(jwtToken));
             return !claims.getBody().getExpiration().before(new Date());
-        } catch (SecurityException | MalformedJwtException | IllegalArgumentException | SignatureException e) {
+        } catch (SecurityException | MalformedJwtException | IllegalArgumentException e) {
             log.error(jwtToken, new CustomException(ErrorCode.TOKEN_INVALID));
         } catch (ExpiredJwtException e) {
             log.error(jwtToken, new CustomException(ErrorCode.TOKEN_EXPIRED));
@@ -127,7 +135,10 @@ public class JwtTokenProvider {
 
     // 만료 기간 확인
     public Date ExpireTime(String token) {
-        Jws<Claims> claims = Jwts.parser().setSigningKey(secretKey).parseClaimsJws(setTokenName(token));
+        Jws<Claims> claims = Jwts.parserBuilder()
+                                .setSigningKey(key)
+                                .build()
+                                .parseClaimsJws(setTokenName(token));
         return claims.getBody().getExpiration();
     }
 

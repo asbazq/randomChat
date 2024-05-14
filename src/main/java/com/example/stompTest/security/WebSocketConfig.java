@@ -32,7 +32,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/ws-stomp").setAllowedOrigins("*").withSockJS();
     }
     
-     @Override
+    // StompHandler가 Websocket 앞단에서 token을 체크할 수 있도록 인터셉터로 설정
+    @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(stompHandler);
     }

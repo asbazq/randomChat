@@ -24,10 +24,10 @@ public class RedisConfig {
     }
 
     //알림 (sse)
-    @Bean
-    public ChannelTopic sseTopic() {
-        return new ChannelTopic("sse");
-    }
+    // @Bean
+    // public ChannelTopic sseTopic() {
+    //     return new ChannelTopic("sse");
+    // }
 
     // 실제 메시지를 처리하는 subscriber 설정 추가
     // 실제 pub가 실행되면 이곳을 통해 데이터가 나가게 된다.
@@ -37,10 +37,10 @@ public class RedisConfig {
         return new MessageListenerAdapter(subscriber, "sendMessage");
     }
 
-    @Bean
-    public MessageListenerAdapter sseListenerAdapter(SseRedisSubscriber subscriber) {
-        return new MessageListenerAdapter(subscriber, "sendMessage");
-    }
+    // @Bean
+    // public MessageListenerAdapter sseListenerAdapter(SseRedisSubscriber subscriber) {
+    //     return new MessageListenerAdapter(subscriber, "sendMessage");
+    // }
 
      // 어플리케이션에서 사용할 redisTemplate 설정
     @Bean
@@ -52,18 +52,17 @@ public class RedisConfig {
         return redisTemplate;
     }
 
+    // redis에서 발행된 메세지 처리를 위한 리스너 설정
     @Bean
     public RedisMessageListenerContainer redisMessageListener(RedisConnectionFactory connectionFactory,
                                                               MessageListenerAdapter listenerAdapter,
-                                                              MessageListenerAdapter sseListenerAdapter,
-                                                              ChannelTopic channelTopic,
-                                                              ChannelTopic sseTopic) {
+                                                              ChannelTopic channelTopic) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         //채팅 리스너
         container.addMessageListener(listenerAdapter, channelTopic);
         //알림 리스너 (sse)
-        container.addMessageListener(sseListenerAdapter, sseTopic);
+        // container.addMessageListener(sseListenerAdapter, sseTopic);
         return container;
     }
 

@@ -47,7 +47,7 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         // 로그인, 리프레시 요청이라면 토큰 검사하지 않음
         // 리프레시 요청은 만료된 토큰을 파싱하기 위해 검사하지 않음
-        return request.getServletPath().equals("/login") || request.getServletPath().equals("/api/refresh");
+        return request.getServletPath().equals("/api/join") || request.getServletPath().equals("/login") || request.getServletPath().equals("/api/refresh");
     }
 
 }

@@ -2,8 +2,6 @@ package com.example.stompTest.security.jwt;
 
 import java.io.UnsupportedEncodingException;
 
-
-
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -84,7 +82,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
         // Hash 방식
         String accessToken = jwtTokenProvider.createToken(userDetailsImpl.getUsername(),
-                userDetailsImpl.getmember().getId());
+                userDetailsImpl.getmember().getId(), userDetailsImpl.getmember().getRole());
 
         String refreshToken = jwtTokenProvider.createRefreshToken(userDetailsImpl.getUsername());
 
