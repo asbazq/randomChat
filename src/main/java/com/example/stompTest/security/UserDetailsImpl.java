@@ -2,9 +2,11 @@ package com.example.stompTest.security;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import com.example.stompTest.model.Member;
 
@@ -13,9 +15,11 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class UserDetailsImpl implements UserDetails {
+public class UserDetailsImpl implements UserDetails, OAuth2User {
 
     private Member member; // 컴포지션
+
+    private Map<String,Object> attributes; // OAuth2
 
     public UserDetailsImpl(Member member) {
         this.member = member;
@@ -24,6 +28,17 @@ public class UserDetailsImpl implements UserDetails {
     public Member getmember() {
         return member;
     }
+
+    public UserDetailsImpl(Member member, Map<String,Object> attributes) {
+        this.member = member;
+        this.attributes = attributes;
+    }
+
+    // OAuth2 오버라이드 메소드
+   @Override
+   public Map<String, Object> getAttributes() {
+       return attributes;
+   }
 
     // 해당 Users 의 권한의 리턴
     @Override
@@ -47,7 +62,8 @@ public class UserDetailsImpl implements UserDetails {
 
     @Override
     public String getPassword() {
-        return member.getPassword();
+        // return member.getPassword();
+        return null;
     }
 
     @Override
@@ -73,5 +89,11 @@ public class UserDetailsImpl implements UserDetails {
     @Override
     public boolean isEnabled() {
         return true;
+    }
+
+    @Override
+    public String getName() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getName'");
     }
 }

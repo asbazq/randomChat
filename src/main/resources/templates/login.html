@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OAuth2 Login</title>
+</head>
+<body>
+    <a id="kakaoLogin" href="#">Login with Kakao</a>
+
+    <script>
+        document.getElementById('kakaoLogin').addEventListener('click', function() {
+            window.location.href = '/oauth2/authorization/kakao';
+        });
+
+        window.addEventListener('load', function() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const state = params.get('state');
+
+            if (code) {
+                fetch(`/login/oauth2/code/kakao?code=${code}&state=${state}`, { method: 'GET', credentials: 'same-origin' })
+                    .then(response => {
+                        const accessToken = response.headers.get('AccessToken');
+                        if (accessToken) {
+                            console.log("AccessToken:", accessToken);
+                            alert("AccessToken: " + accessToken);
+                            localStorage.setItem('Authorization', accessToken);  // Save the token to localStorage
+                            window.location.href = '/admin/room';
+                        } else {
+                            console.error('AccessToken이 응답 헤더에 없습니다.');
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,16 +1,19 @@
 package com.example.stompTest.Exception;
 
-import org.springframework.beans.factory.annotation.Autowired;
-
 public class CustomException extends RuntimeException {
-    private ErrorCode errorCode;
+    private final ErrorCode errorCode;
 
-    @Autowired
     public CustomException(ErrorCode errorCode) {
+        super(errorCode.getErrorMessage());
         this.errorCode = errorCode;
     }
 
     public CustomException(ErrorCode errorCode, String msg) {
+        super(msg);
         this.errorCode = errorCode;
+    }
+
+    public ErrorCode getErrorCode() {
+        return errorCode;
     }
 }

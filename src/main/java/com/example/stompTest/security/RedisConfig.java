@@ -11,7 +11,6 @@ import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import com.example.stompTest.service.RedisSubscriber;
-import com.example.stompTest.service.SseRedisSubscriber;
 
 @Configuration
 public class RedisConfig {

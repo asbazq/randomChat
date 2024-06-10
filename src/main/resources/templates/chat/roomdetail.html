@@ -1,20 +1,17 @@
 <!doctype html>
 <html lang="en">
-  <head>
+<head>
+    <meta charset="UTF-8">
     <title>Websocket ChatRoom</title>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
-    <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="/webjars/bootstrap/4.3.1/dist/css/bootstrap.min.css">
     <style>
       [v-cloak] {
           display: none;
       }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container" id="app" v-cloak>
         <div class="row">
             <div class="col-md-6">
@@ -40,60 +37,74 @@
             </li>
         </ul>
     </div>
-    <!-- JavaScript -->
     <script src="/webjars/vue/2.5.16/dist/vue.min.js"></script>
     <script src="/webjars/axios/0.17.1/dist/axios.min.js"></script>
     <script src="/webjars/sockjs-client/1.1.2/sockjs.min.js"></script>
     <script src="/webjars/stomp-websocket/2.3.3-1/stomp.min.js"></script>
     <script>
-        // websocket & stomp initialize
         var sock = new SockJS("/ws-stomp");
         var ws = Stomp.over(sock);
-        // vue.js
+
         var vm = new Vue({
             el: '#app',
             data: {
                 roomId: '',
                 message: '',
                 messages: [],
-                user: {
-                    name: '',
-                    email: ''
-                },
+                token: '',
                 userCount: 0
             },
             created() {
                 this.roomId = localStorage.getItem('wschat.roomId');
-                console.log("Room ID:", this.roomId);  // 로그 추가
+                this.token = localStorage.getItem('Authorization');
+                console.log("Room ID:", this.roomId);
+                console.log("Token:", this.token);
+
+                if (!this.token) {
+                    console.error("No JWT token found in local storage");
+                    alert("로그인이 필요합니다.");
+                    window.location.href = "/login";
+                    return;
+                }
+
                 var _this = this;
-                axios.get('/admin/user').then(response => {
-                    _this.user = response.data;
-                    ws.connect({}, function(frame) {
-                        ws.subscribe("/sub/chat/room/"+_this.roomId, function(message) {
-                            var recv = JSON.parse(message.body);
-                            _this.recvMessage(recv);
-                        });
-                        _this.sendMessage('ENTER');
-                    }, function(error) {
-                        console.error("Failed to get user data:", error);  // 오류 로그 추가
-                        alert("서버 연결에 실패 하였습니다. 다시 접속해 주십시요.");
-                        location.href="/admin/room";
+                ws.connect({
+                    "Authorization": this.token
+                }, function(frame) {
+                    ws.subscribe("/sub/chat/room/" + _this.roomId, function(message) {
+                        var recv = JSON.parse(message.body);
+                        _this.recvMessage(recv);
+                    }, {
+                        "Authorization": _this.token
                     });
+                    _this.sendMessage('ENTER');
+                }, function(error) {
+                    console.error("Failed to connect to WebSocket:", error);
+                    alert("서버 연결에 실패 하였습니다. 다시 접속해 주십시요.");
+                    location.href="/admin/room";
                 });
             },
             methods: {
                 sendMessage: function(type) {
-                    console.log("Sending message:", this.message);  // 로그 추가
-                    ws.send("/pub/chat/message", {}, JSON.stringify({type:type, roomId:this.roomId, message:this.message}));
+                    ws.send("/pub/chat/message", {
+                        "Authorization": this.token
+                    }, JSON.stringify({
+                        type: type,
+                        roomId: this.roomId,
+                        message: this.message
+                    }));
                     this.message = '';
                 },
                 recvMessage: function(recv) {
                     this.userCount = recv.userCount;
-                    this.messages.unshift({"type":recv.type,"sender":recv.sender,"message":recv.message})
-                    console.log("Received message:", recv);  // 로그 추가
+                    this.messages.unshift({
+                        "type": recv.type,
+                        "sender": recv.sender,
+                        "message": recv.message
+                    })
                 }
             }
         });
     </script>
-  </body>
+</body>
 </html>

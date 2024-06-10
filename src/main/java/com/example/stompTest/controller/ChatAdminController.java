@@ -4,7 +4,10 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,38 +16,40 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import com.example.stompTest.Exception.CustomException;
-import com.example.stompTest.Exception.ErrorCode;
 import com.example.stompTest.dto.ChatRoomDto;
-import com.example.stompTest.dto.LoginInfoDto;
+import com.example.stompTest.dto.LoginInfo;
 import com.example.stompTest.model.Member;
-import com.example.stompTest.repository.MemberRepository;
+import com.example.stompTest.security.UserDetailsImpl;
 import com.example.stompTest.security.jwt.JwtTokenProvider;
 import com.example.stompTest.service.ChatRoomService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequiredArgsConstructor
 @Controller
 @RequestMapping("/admin")
 public class ChatAdminController {
 
     private final ChatRoomService chatRoomService;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final MemberRepository memberRepository;
+
 
     // 채팅 리스트
     @GetMapping("/room")
-    public ResponseEntity<String> rooms(Model model) {
-        return ResponseEntity.ok("/chat/room");
+    public String rooms(Model model) {
+        // Add any necessary attributes to the model
+        model.addAttribute("chatrooms", chatRoomService.findAllRoom());
+        return "chat/room"; // This should map to room.ftl
     }
+
 
     // 모든 채팅방
     @GetMapping("/rooms")
     @ResponseBody
     public ResponseEntity<List<ChatRoomDto>> room() {
         List<ChatRoomDto> chatRooms = chatRoomService.findAllRoom();
-        chatRooms.stream().forEach(room -> room.setUserCount(chatRoomService.getUserCount(room.getId())));
+        chatRooms.stream().forEach(room -> room.setUserCount(chatRoomService.getUserCount(room.getRoomId())));
         return ResponseEntity.ok(chatRooms);
     }
 
@@ -57,9 +62,9 @@ public class ChatAdminController {
          
     // 채팅방 입장 화면
     @GetMapping("/room/enter/{roomId}")
-    public ResponseEntity<String> roomDetail(Model model, @PathVariable Long roomId) {
+    public String roomDetail(Model model, @PathVariable String roomId) {
         model.addAttribute("roomId", roomId);
-        return ResponseEntity.ok("/chat/roomdetail");
+        return "chat/roomdetail";
     }
 
     // 특정 채팅방 조회
@@ -67,19 +72,6 @@ public class ChatAdminController {
     @ResponseBody
     public ResponseEntity<ChatRoomDto> roomInfo(@PathVariable String roomId) {
         return ResponseEntity.ok(chatRoomService.findRoomById(roomId));
-    }
-
-
-    // 유저 정보
-    @GetMapping("/user")
-    @ResponseBody
-    public LoginInfoDto getMemberInfo() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String name = auth.getName();
-        Member member = memberRepository.findByName(name)
-            .orElseThrow(() ->new CustomException(ErrorCode.USER_NOT_FOUND));
-        Long memberId = member.getId();
-        return LoginInfoDto.builder().username(name).token(jwtTokenProvider.createToken(name, memberId, member.getRole())).build();
     }
 }
 

@@ -1,24 +1,21 @@
 package com.example.stompTest.service;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.PriorityQueue;
 import java.util.Random;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
-import com.example.stompTest.Exception.CustomException;
-import com.example.stompTest.Exception.ErrorCode;
 import com.example.stompTest.dto.ChatMessageDto;
 import com.example.stompTest.dto.ChatRoomDto;
-import com.example.stompTest.model.Member;
-import com.example.stompTest.repository.MemberRepository;
-import com.example.stompTest.security.UserDetailsImpl;
 
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +27,6 @@ import lombok.extern.log4j.Log4j2;
 public class ChatRoomService {
     private final ChannelTopic channelTopic;
     private final RedisTemplate redisTemplate;
-    private final MemberRepository memberRepository;
     private final static Random random = new Random();
     
     // Redis CacheKeys
@@ -40,11 +36,11 @@ public class ChatRoomService {
 
     
     @Resource(name = "redisTemplate")
-    private HashOperations<String, String, ChatRoomDto> hashOpsChatRoom; // 채팅룸 저장
+    private HashOperations<String, String, ChatRoomDto> hashOpsChatRoom; // CHAT_ROOM, roomId, ChatRoomDto
     @Resource(name = "redisTemplate")
-    private HashOperations<String, Long, String> hashOpsEnterInfo; // 채팅룸에 입장한 클라이언트의 sessionId와 채팅룸 id를 맵핑한 정보 저장
+    private HashOperations<String, String, String> hashOpsEnterInfo; // ENTER_INFO, sessionId, roomId
     @Resource(name = "redisTemplate")
-    private ValueOperations<String, String> valueOps; // 채팅룸에 입장한 클라이언트수 저장
+    private ValueOperations<String, String> valueOps; // USER_COUNT + "_" + roomId, userCount
 
     // destination정보에서 roomId 추출
     public String getRoomId(String destination) {
@@ -57,6 +53,7 @@ public class ChatRoomService {
 
     // 채팅방에 메시지 발송
     public void sendChatMessage(ChatMessageDto chatMessage) {
+        log.info("Attempt to sendChatMessage");
         chatMessage.setUserCount(getUserCount(chatMessage.getRoomId()));
         if (ChatMessageDto.MessageType.ENTER.equals(chatMessage.getType())) {
             chatMessage.setMessage(chatMessage.getSender() + "님이 방에 입장했습니다.");
@@ -69,70 +66,33 @@ public class ChatRoomService {
         redisTemplate.convertAndSend(channelTopic.getTopic(), chatMessage);
     }
 
-    // membership 회원이라면 우선권 부여
-    private static class MemberComparator implements Comparator<Member> {
-        public int compare(Member m1, Member m2) {
-            if (m1.getRole() == Member.MemberRole.MEMBERSHIP && m2.getRole() != Member.MemberRole.MEMBERSHIP) {
-                return -1;
-            } else if (m1.getRole() != Member.MemberRole.MEMBERSHIP && m2.getRole() == Member.MemberRole.MEMBERSHIP) {
-                return 1;
-            }
-            // role이 같을 시 랜덤
-            return random.nextBoolean() ? 1 : -1;
-        }
-    }
-
-    private final PriorityQueue<Member> userQueue = new PriorityQueue<>(new MemberComparator());
-
-    public synchronized ChatRoomDto addUserToQueue(UserDetailsImpl userDetails) {
-        Member member = memberRepository.findById(userDetails.getmember().getId()).orElseThrow(
-            () -> new CustomException(ErrorCode.USER_NOT_FOUND)
-        );
-        Long userId = member.getId();
-        Member.MemberRole role = member.getRole();
-        if (userQueue.contains(member)) {
-            throw new CustomException(ErrorCode.DUPLICATE_RESOURCE);
-        }
-        userQueue.offer(new Member(userId, role));
-        log.info("대기 수1 : " + userQueue.size());
-        return matchUsers();
-    }
-
-    private ChatRoomDto matchUsers() {
-        while (userQueue.size() > 1) {
-            Member m1 = userQueue.poll();
-            Member m2 = userQueue.poll();
+     /**
+     1. 유저 카운트가 1인 방 찾기
+     2-1. 해당하는 방이 없을 경우, 새로운 방을 만들고 방의 정보 리턴
+     2-2. 해당하는 방들이 있는 경우, 해당 방들 중 랜덤으로 하나를 뽑아서 그 채팅방의 정보를 리턴
+     */
+    //유저가 1명만 있는 방들을 찾고, 그 중 하나만 랜덤으로 뽑기
+    public ResponseEntity<ChatRoomDto> randomRoom(OAuth2User oAuth2User) {
+        String name = oAuth2User.getAttribute("name");
+          List<ChatRoomDto> rooms = hashOpsChatRoom.values(CHAT_ROOMS).stream()
+                .filter(room -> Integer.parseInt(valueOps.get(USER_COUNT + "_" + room.getRoomId())) == 1)
+                .collect(Collectors.toList());
+        if (rooms.isEmpty()) {
             ChatRoomDto chatRoom = createChatRoom();
-            log.info("대기 수2 : " + userQueue.size());
-
-            if (m1 != null && m2 != null) {
-                String roomId = chatRoom.getId();
-                setUserEnterInfo(m1.getId(), roomId);
-                setUserEnterInfo(m2.getId(), roomId);
-                sendJoinMessage(m1, m2, roomId);
-                return chatRoom;
-            }
+            log.info("Create room user: {}", name);
+            return ResponseEntity.ok(ChatRoomDto.builder()
+                    .roomId(chatRoom.getRoomId())
+                    .userCount(chatRoom.getUserCount())
+                    .build());
+        } else {
+            ChatRoomDto chatRoom = rooms.get(random.nextInt(rooms.size()));
+            log.info("Enter room user: {}", name);
+            return ResponseEntity.ok(ChatRoomDto.builder()
+                    .roomId(chatRoom.getRoomId())
+                    .userCount(chatRoom.getUserCount())
+                    .build());
         }
-        return null;
     }
-
-    private void sendJoinMessage(Member m1, Member m2, String roomId) {
-        ChatMessageDto message1 = ChatMessageDto.builder().type(ChatMessageDto.MessageType.ENTER).roomId(roomId).sender(m1.getNickname()).build();
-        ChatMessageDto message2 = ChatMessageDto.builder().type(ChatMessageDto.MessageType.ENTER).roomId(roomId).sender(m2.getNickname()).build();
-        sendChatMessage(message1);
-        sendChatMessage(message2);
-    }
-
-    public synchronized void minusUserToQueue(UserDetailsImpl userDetails) {
-        Member member = memberRepository.findById(userDetails.getmember().getId()).orElseThrow(
-            () -> new CustomException(ErrorCode.USER_NOT_FOUND)
-        );
-        if (userQueue.contains(member)) {
-            userQueue.remove(member);
-        }
-        log.info("대기 수1 : " + userQueue.size());
-    }
-
 
     // 모든 채팅방 조회
     public List<ChatRoomDto> findAllRoom() {
@@ -146,24 +106,27 @@ public class ChatRoomService {
 
     // 채팅방 생성 : 서버간 채팅방 공유를 위해 redis hash에 저장한다.
     public ChatRoomDto createChatRoom() {
-        ChatRoomDto chatRoom = ChatRoomDto.create();
-        hashOpsChatRoom.put(CHAT_ROOMS, chatRoom.getId(), chatRoom);
+        ChatRoomDto chatRoom = ChatRoomDto.builder()
+                .roomId(UUID.randomUUID().toString())
+                .userCount(0L)
+                .build();
+        hashOpsChatRoom.put(CHAT_ROOMS, chatRoom.getRoomId(), chatRoom);
         return chatRoom;
     }
 
     // 유저가 입장한 채팅방ID와 유저 세션ID 맵핑 정보 저장
-    public void setUserEnterInfo(Long memberId, String roomId) {
-        hashOpsEnterInfo.put(ENTER_INFO, memberId, roomId);
+    public void setUserEnterInfo(String sessionId, String roomId) {
+        hashOpsEnterInfo.put(ENTER_INFO, sessionId, roomId);
     }
 
     // 유저 세션으로 입장해 있는 채팅방 ID 조회
-    public String getUserEnterRoomId(Long memberId) {
-        return hashOpsEnterInfo.get(ENTER_INFO, memberId);
+    public String getUserEnterRoomId(String sessionId) {
+        return hashOpsEnterInfo.get(ENTER_INFO, sessionId);
     }
 
     // 유저 세션정보와 맵핑된 채팅방ID 삭제
-    public void removeUserEnterInfo(Long memberId) {
-        hashOpsEnterInfo.delete(ENTER_INFO, memberId);
+    public void removeUserEnterInfo(String sessionId) {
+        hashOpsEnterInfo.delete(ENTER_INFO, sessionId);
     }
 
     // 채팅방 유저수 조회
@@ -180,4 +143,6 @@ public class ChatRoomService {
     public long minusUserCount(String roomId) {
         return Optional.ofNullable(valueOps.decrement(USER_COUNT + "_" + roomId)).filter(count -> count > 0).orElse(0L);
     }
+
+ 
 }

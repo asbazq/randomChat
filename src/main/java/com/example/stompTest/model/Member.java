@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -28,23 +29,16 @@ public class Member {
     @Column
     private String name;
 
-    @Column
-    private String nickname;
-
     @Column(nullable = false)
-    private String password;
-
-    @Column
     private String email;
 
     @Column
     @Enumerated(EnumType.STRING)
     private MemberRole role; 
 
-    public Member(String name, String nickname, String password, String email, MemberRole role) {
+    @Builder
+    public Member(String name, String email, MemberRole role) {
         this.name = name;
-        this.nickname = nickname;
-        this.password = password;
         this.email = email;
         this.role = role;
     }

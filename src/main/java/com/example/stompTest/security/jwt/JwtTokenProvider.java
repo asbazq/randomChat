@@ -4,7 +4,6 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.security.Key;
-import java.security.SignatureException;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -48,6 +47,7 @@ public class JwtTokenProvider {
     public final HttpServletResponse response;
     private final UserDetailsService userDetailsService;
     private Key key;
+
 
     @PostConstruct
     protected void init() {
@@ -97,6 +97,7 @@ public class JwtTokenProvider {
                     .getSubject();
     }
 
+    
     // JWT 토큰에서 인증 정보 조회
     public Authentication getAuthentication(String jwtToken) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(this.getUserPk(setTokenName(jwtToken)));
